@@ -5,7 +5,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
 
 # =====================================
-# GEMINI API SETUP
+# GEMINI API
 # =====================================
 
 genai.configure(
@@ -31,12 +31,13 @@ st.set_page_config(
 # =====================================
 
 st.title("🎓 CORTEXA")
+
 st.subheader(
     "AI Lecture-to-Learning Assistant"
 )
 
 # =====================================
-# YOUTUBE INPUT
+# INPUT
 # =====================================
 
 video_url = st.text_input(
@@ -89,7 +90,7 @@ def get_transcript(video_url):
     return full_text
 
 # =====================================
-# GENERATE AI NOTES
+# GENERATE NOTES
 # =====================================
 
 def generate_notes(transcript):
@@ -103,7 +104,29 @@ def generate_notes(transcript):
     4. Key Takeaways
     5. Bullet Points
 
-    Make the notes clean and readable.
+    Transcript:
+    {transcript}
+    """
+
+    response = model.generate_content(
+        prompt
+    )
+
+    return response.text
+
+# =====================================
+# GENERATE FLASHCARDS
+# =====================================
+
+def generate_flashcards(transcript):
+
+    prompt = f"""
+    Create 10 study flashcards.
+
+    Format EXACTLY like this:
+
+    Q: Question here
+    A: Answer here
 
     Transcript:
     {transcript}
@@ -119,7 +142,21 @@ def generate_notes(transcript):
 # MAIN BUTTON
 # =====================================
 
-if st.button("Generate Smart Notes"):
+# =====================================
+# SESSION STATE
+# =====================================
+
+if "notes" not in st.session_state:
+    st.session_state.notes = ""
+
+if "flashcards" not in st.session_state:
+    st.session_state.flashcards = ""
+
+# =====================================
+# MAIN BUTTON
+# =====================================
+
+if st.button("Generate Study Material"):
 
     if video_url:
 
@@ -144,27 +181,118 @@ if st.button("Generate Smart Notes"):
         # -----------------------------
 
         with st.spinner(
-            "Generating AI Notes..."
+            "Generating Smart Notes..."
         ):
 
             notes = generate_notes(
                 transcript
             )
 
-        st.success(
-            "Smart Notes Generated!"
-        )
-
         # -----------------------------
-        # DISPLAY NOTES
+        # GENERATE FLASHCARDS
         # -----------------------------
 
-        st.header("📝 Smart Notes")
+        with st.spinner(
+            "Generating Flashcards..."
+        ):
 
-        st.write(notes)
+            flashcards = generate_flashcards(
+                transcript
+            )
+
+        # SAVE TO SESSION
+
+        st.session_state.notes = notes
+        st.session_state.flashcards = flashcards
 
     else:
 
         st.warning(
             "Please enter YouTube URL"
         )
+
+# =====================================
+# DISPLAY CONTENT
+# =====================================
+
+if st.session_state.notes:
+
+    tab1, tab2 = st.tabs(
+        [
+            "📝 Smart Notes",
+            "🧠 Flashcards"
+        ]
+    )
+
+    # =====================================
+    # NOTES TAB
+    # =====================================
+
+    with tab1:
+
+        st.header(
+            "📝 AI Smart Notes"
+        )
+
+        st.write(
+            st.session_state.notes
+        )
+
+    # =====================================
+    # FLASHCARDS TAB
+    # =====================================
+
+    with tab2:
+
+        st.header(
+            "🧠 AI Flashcards"
+        )
+
+        cards = (
+            st.session_state.flashcards
+            .split("Q:")
+        )
+
+        cols = st.columns(2)
+
+        card_index = 0
+
+        for card in cards:
+
+            if "A:" in card:
+
+                question, answer = card.split(
+                    "A:",
+                    1
+                )
+
+                question = question.strip()
+                answer = answer.strip()
+
+                with cols[card_index % 2]:
+
+                    st.markdown(
+                        f"""
+                        <div style="
+                            background-color:#1e1e1e;
+                            padding:20px;
+                            border-radius:15px;
+                            margin-bottom:20px;
+                            border:1px solid #444;
+                        ">
+                            <h4 style='color:#00d4ff;'>
+                                ❓ {question}
+                            </h4>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    if st.button(
+                        "Reveal Answer",
+                        key=f"btn_{card_index}"
+                    ):
+
+                        st.success(answer)
+
+                card_index += 1
