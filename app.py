@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+import speech_recognition as sr
 
 from youtube_transcript_api import YouTubeTranscriptApi
 from urllib.parse import urlparse, parse_qs
@@ -13,7 +14,7 @@ genai.configure(
 )
 
 model = genai.GenerativeModel(
-    "gemini-2.5-flash-lite"
+    "gemini-3.1-flash-lite"
 )
 
 # =====================================
@@ -56,6 +57,12 @@ if "flashcards" not in st.session_state:
 
 if "quiz" not in st.session_state:
     st.session_state.quiz = ""
+
+if "transcript" not in st.session_state:
+    st.session_state.transcript = ""
+
+if "current_question" not in st.session_state:
+    st.session_state.current_question = ""
 
 # =====================================
 # EXTRACT VIDEO ID
@@ -158,7 +165,7 @@ def generate_flashcards(transcript):
 def generate_quiz(transcript):
 
     prompt = f"""
-    Create 5 multiple choice questions from this lecture.
+    Create 5 multiple choice questions.
 
     Format EXACTLY like this:
 
@@ -182,6 +189,38 @@ def generate_quiz(transcript):
     return response.text
 
 # =====================================
+# SPEECH TO TEXT
+# =====================================
+
+def listen_to_voice():
+
+    recognizer = sr.Recognizer()
+
+    with sr.Microphone() as source:
+
+        st.info(
+            "🎤 Listening..."
+        )
+
+        audio = recognizer.listen(
+            source,
+            timeout=5,
+            phrase_time_limit=10
+        )
+
+    try:
+
+        text = recognizer.recognize_google(
+            audio
+        )
+
+        return text
+
+    except:
+
+        return "Could not understand audio"
+
+# =====================================
 # MAIN BUTTON
 # =====================================
 
@@ -200,10 +239,6 @@ if st.button("Generate Study Material"):
             transcript = get_transcript(
                 video_url
             )
-
-        st.success(
-            "Transcript Extracted!"
-        )
 
         # -----------------------------
         # GENERATE NOTES
@@ -248,6 +283,11 @@ if st.button("Generate Study Material"):
         st.session_state.notes = notes
         st.session_state.flashcards = flashcards
         st.session_state.quiz = quiz
+        st.session_state.transcript = transcript
+
+        st.success(
+            "Study Material Ready!"
+        )
 
     else:
 
@@ -261,11 +301,12 @@ if st.button("Generate Study Material"):
 
 if st.session_state.notes:
 
-    tab1, tab2, tab3 = st.tabs(
+    tab1, tab2, tab3, tab4 = st.tabs(
         [
             "📝 Smart Notes",
             "🧠 Flashcards",
-            "🧪 Quiz"
+            "🧪 Quiz",
+            "🤖 AI Tutor"
         ]
     )
 
@@ -424,3 +465,113 @@ if st.session_state.notes:
                         st.error(
                             f"Wrong ❌ Correct answer: {correct_answer}"
                         )
+
+    # =====================================
+    # AI TUTOR TAB
+    # =====================================
+
+    with tab4:
+
+        st.header(
+            "🤖 Voice AI Tutor"
+        )
+
+        # -----------------------------
+        # VOICE BUTTON
+        # -----------------------------
+
+        if st.button(
+            "🎤 Speak Question"
+        ):
+
+            voice_text = listen_to_voice()
+
+            st.session_state.current_question = (
+                voice_text
+            )
+
+            st.success(
+                f"You said: {voice_text}"
+            )
+
+        # -----------------------------
+        # TEXT INPUT
+        # -----------------------------
+
+        user_question = st.text_input(
+            "Ask a question:",
+            key="question_box"
+        )
+
+        # -----------------------------
+        # FINAL QUESTION
+        # -----------------------------
+
+        final_question = user_question
+
+        if (
+            st.session_state.current_question
+            != ""
+        ):
+
+            final_question = (
+                st.session_state.current_question
+            )
+
+        # -----------------------------
+        # SHOW QUESTION
+        # -----------------------------
+
+        st.info(
+            f"Current Question: {final_question}"
+        )
+
+        # -----------------------------
+        # ASK AI TUTOR
+        # -----------------------------
+
+        if st.button(
+            "Ask AI Tutor"
+        ):
+
+            with st.spinner(
+                "Thinking..."
+            ):
+
+                tutor_prompt = f"""
+                You are CORTEXA,
+                an AI lecture tutor.
+
+                STRICT RULES:
+                - Answer ONLY using lecture content
+                - Do NOT invent information
+                - If topic isn't covered,
+                  say:
+                  "This topic was not clearly covered in the lecture."
+
+                Explain clearly and simply.
+
+                LECTURE CONTENT:
+                {st.session_state.transcript[:12000]}
+
+                STUDENT QUESTION:
+                {final_question}
+
+                ANSWER:
+                """
+
+                response = model.generate_content(
+                    tutor_prompt
+                )
+
+                answer = response.text
+
+                st.success(
+                    "Answer Generated!"
+                )
+
+                st.write(answer)
+
+                # CLEAR QUESTION
+
+                st.session_state.current_question = ""
