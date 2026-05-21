@@ -9,7 +9,7 @@ from urllib.parse import urlparse, parse_qs
 # =====================================
 
 genai.configure(
-    api_key="AIzaSyDfCNnApgPVl2KbMoYtrFyMPtxS4eNvryc"
+    api_key=st.secrets["GEMINI_API_KEY"]
 )
 
 model = genai.GenerativeModel(
