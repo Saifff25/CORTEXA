@@ -45,6 +45,19 @@ video_url = st.text_input(
 )
 
 # =====================================
+# SESSION STATE
+# =====================================
+
+if "notes" not in st.session_state:
+    st.session_state.notes = ""
+
+if "flashcards" not in st.session_state:
+    st.session_state.flashcards = ""
+
+if "quiz" not in st.session_state:
+    st.session_state.quiz = ""
+
+# =====================================
 # EXTRACT VIDEO ID
 # =====================================
 
@@ -139,18 +152,34 @@ def generate_flashcards(transcript):
     return response.text
 
 # =====================================
-# MAIN BUTTON
+# GENERATE QUIZ
 # =====================================
 
-# =====================================
-# SESSION STATE
-# =====================================
+def generate_quiz(transcript):
 
-if "notes" not in st.session_state:
-    st.session_state.notes = ""
+    prompt = f"""
+    Create 5 multiple choice questions from this lecture.
 
-if "flashcards" not in st.session_state:
-    st.session_state.flashcards = ""
+    Format EXACTLY like this:
+
+    QUESTION: What is AI?
+
+    OPTION A: Artificial Intelligence
+    OPTION B: Automatic Input
+    OPTION C: Artificial Internet
+    OPTION D: None
+
+    ANSWER: A
+
+    Transcript:
+    {transcript}
+    """
+
+    response = model.generate_content(
+        prompt
+    )
+
+    return response.text
 
 # =====================================
 # MAIN BUTTON
@@ -200,10 +229,25 @@ if st.button("Generate Study Material"):
                 transcript
             )
 
+        # -----------------------------
+        # GENERATE QUIZ
+        # -----------------------------
+
+        with st.spinner(
+            "Generating Quiz..."
+        ):
+
+            quiz = generate_quiz(
+                transcript
+            )
+
+        # -----------------------------
         # SAVE TO SESSION
+        # -----------------------------
 
         st.session_state.notes = notes
         st.session_state.flashcards = flashcards
+        st.session_state.quiz = quiz
 
     else:
 
@@ -217,10 +261,11 @@ if st.button("Generate Study Material"):
 
 if st.session_state.notes:
 
-    tab1, tab2 = st.tabs(
+    tab1, tab2, tab3 = st.tabs(
         [
             "📝 Smart Notes",
-            "🧠 Flashcards"
+            "🧠 Flashcards",
+            "🧪 Quiz"
         ]
     )
 
@@ -296,3 +341,86 @@ if st.session_state.notes:
                         st.success(answer)
 
                 card_index += 1
+
+    # =====================================
+    # QUIZ TAB
+    # =====================================
+
+    with tab3:
+
+        st.header(
+            "🧪 AI Quiz"
+        )
+
+        quiz_text = (
+            st.session_state.quiz
+        )
+
+        questions = quiz_text.split(
+            "QUESTION:"
+        )
+
+        for i, q in enumerate(questions):
+
+            if "ANSWER:" in q:
+
+                question_part, answer_part = q.split(
+                    "ANSWER:"
+                )
+
+                correct_answer = (
+                    answer_part.strip()[0]
+                )
+
+                lines = (
+                    question_part.strip()
+                    .split("\n")
+                )
+
+                question = lines[0]
+
+                options = []
+
+                for line in lines[1:]:
+
+                    if "OPTION" in line:
+
+                        options.append(
+                            line.strip()
+                        )
+
+                st.subheader(
+                    f"Q{i}"
+                )
+
+                st.write(question)
+
+                user_answer = st.radio(
+                    "Choose an answer:",
+                    options,
+                    key=f"quiz_{i}"
+                )
+
+                if st.button(
+                    f"Check Answer {i}",
+                    key=f"check_{i}"
+                ):
+
+                    selected = (
+                        user_answer[7]
+                    )
+
+                    if (
+                        selected
+                        == correct_answer
+                    ):
+
+                        st.success(
+                            "Correct! ✅"
+                        )
+
+                    else:
+
+                        st.error(
+                            f"Wrong ❌ Correct answer: {correct_answer}"
+                        )
